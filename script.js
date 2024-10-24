@@ -284,7 +284,7 @@ var greySquare = function(square) {
 };
 
 var cfg = {
-    draggable: true,
+    draggable: false,
     position: 'start',
     onDragStart: onDragStart,
     onDrop: onDrop,
@@ -293,3 +293,143 @@ var cfg = {
     onSnapEnd: onSnapEnd
 };
 board = ChessBoard('board', cfg);
+var board,
+    game = new Chess();
+
+var cfg = {
+    draggable: false,  // desactivar arrastre
+    position: 'start',
+    onMouseoutSquare: onMouseoutSquare,
+    onMouseoverSquare: onMouseoverSquare
+};
+board = ChessBoard('board', cfg);
+
+var selectedSquare = null;
+
+// Manejar clics en el tablero
+$('#board').on('click', '.square-55d63', function() {
+    var square = $(this).data('square');
+    if (!selectedSquare) {
+        // Si no hay ninguna ficha seleccionada, selecciona esta y muestra movimientos
+        selectedSquare = square;
+        showMoves(square);
+    } else {
+        // Si ya hay una ficha seleccionada, intenta moverla a la nueva casilla
+        makeMove(selectedSquare, square);
+        selectedSquare = null; // Desselecciona la ficha
+    }
+});
+
+function showMoves(square) {
+    var moves = game.moves({
+        square: square,
+        verbose: true
+    });
+
+    if (moves.length === 0) return;
+
+    removeGreySquares();  // Limpiar cualquier marcador previo
+    greySquare(square);   // Resaltar la casilla de la pieza seleccionada
+
+    // Resaltar las casillas de los movimientos posibles
+    for (var i = 0; i < moves.length; i++) {
+        greySquare(moves[i].to);
+    }
+}
+
+function makeMove(from, to) {
+    var move = game.move({
+        from: from,
+        to: to,
+        promotion: 'q' // siempre promueve a reina
+    });
+
+    removeGreySquares();  // Limpiar cualquier marcador
+    if (move === null) {
+        alert('Movimiento inválido');
+        return;
+    }
+
+    board.position(game.fen());  // Actualizar el tablero
+    renderMoveHistory(game.history());
+
+    if (game.game_over()) {
+        alert('Juego terminado');
+    } else {
+        window.setTimeout(makeBestMove, 250);  // Lógica para que juegue la IA
+    }
+}
+
+function removeGreySquares() {
+    $('#board .square-55d63').css('background', '');
+}
+
+function greySquare(square) {
+    var squareEl = $('#board .square-' + square);
+
+    var background = '#a9a9a9';
+    if (squareEl.hasClass('black-3c85d') === true) {
+        background = '#696969';
+    }
+
+    squareEl.css('background', background);
+}
+
+var renderMoveHistory = function (moves) {
+    var historyElement = $('#move-history').empty();
+    historyElement.empty();
+    for (var i = 0; i < moves.length; i = i + 2) {
+        historyElement.append('<span>' + moves[i] + ' ' + ( moves[i + 1] ? moves[i + 1] : ' ') + '</span><br>')
+    }
+    historyElement.scrollTop(historyElement[0].scrollHeight);
+};
+
+var onMouseoverSquare = function(square, piece) {
+    var moves = game.moves({
+        square: square,
+        verbose: true
+    });
+
+    if (moves.length === 0) return;
+
+    greySquare(square);
+
+    for (var i = 0; i < moves.length; i++) {
+        greySquare(moves[i].to);
+    }
+};
+
+var onMouseoutSquare = function(square, piece) {
+    removeGreySquares();
+};
+
+var makeBestMove = function () {
+    var bestMove = getBestMove(game);
+    game.ugly_move(bestMove);
+    board.position(game.fen());
+    renderMoveHistory(game.history());
+    if (game.game_over()) {
+        alert('Juego Terminado');
+    }
+};
+
+var positionCount;
+var getBestMove = function (game) {
+    if (game.game_over()) {
+        alert('Juego Terminado');
+    }
+
+    positionCount = 0;
+    var depth = parseInt($('#search-depth').find(':selected').text());
+
+    var d = new Date().getTime();
+    var bestMove = minimaxRoot(depth, game, true);
+    var d2 = new Date().getTime();
+    var moveTime = (d2 - d);
+    var positionsPerS = ( positionCount * 1000 / moveTime);
+
+    $('#position-count').text(positionCount);
+    $('#time').text(moveTime/1000 + 's');
+    $('#positions-per-s').text(positionsPerS);
+    return bestMove;
+};
